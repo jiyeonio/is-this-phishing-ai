@@ -16,7 +16,7 @@ is-this-phishing-ai/
 │  ├─ models/                   # Request/Response Schema
 │  │  └─ schemas.py
 │  └─ ml/                       # 머신러닝 모델 연동
-│     └─ phishing_model.py
+│     └─ phishing_model.py (이거 아직 안만듬 - 코랩 실험 파일 만들고 올리면 됨)
 │
 ├─ data/                        # 데이터셋 저장 폴더
 │  ├─ raw/                      # 원본 데이터
