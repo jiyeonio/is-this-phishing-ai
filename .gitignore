@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# PhishGuard — 로컬 평판 DB (팀원마다 로컬 생성, git 추적 금지)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3

@@ -1,1 +1,22 @@
+# PhishGuard 백엔드(B 트랙) 실행 의존성
+# 설치: pip install -r requirements.txt
+# 실행: 레포 최상위에서  uvicorn backend.main:app --reload
 
+# --- 코어 (backend 실행에 필수) ---
+fastapi==0.139.0
+uvicorn[standard]==0.51.0
+pydantic==2.13.4
+
+# --- 설명 생성 (explain.py Claude 경로, 선택) ---
+# 키(ANTHROPIC_API_KEY) 없으면 템플릿 폴백으로 동작하므로 없어도 서버는 돎.
+anthropic>=0.40.0
+
+# 표준 라이브러리만 사용하는 부분(설치 불필요): sqlite3, json, re, unicodedata,
+# datetime, contextlib.
+
+# --- A 트랙(모델·데이터) 및 B 후속 단계에서 추가 예정(지금은 불필요) ---
+# transformers / torch / datasets    # KcELECTRA 학습·서빙 (A5)
+# scikit-learn                       # 베이스라인·융합 메타분류기 (A4, A9)
+# pandas / pyarrow                   # 데이터 전처리 (A3)
+# python-whois                       # 도메인 나이 규칙 (B1)
+# sentence-transformers / faiss-cpu  # RAG 유사사례 (B5, 선택)
