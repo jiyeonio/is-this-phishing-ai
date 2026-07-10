@@ -46,8 +46,10 @@ const SIGNAL_FIELDS = {
   reputation: 'reputation',
 }
 
+// 계약(docs/INTEGRATION.md, backend/schemas.py Cluster): {id, size, report_count, risk}
+// org_count는 실제 스키마에 없는 필드 — size(클러스터 노드 수)를 씀
 const CLUSTER_FIELDS = {
-  orgCount: 'org_count',
+  orgCount: 'size',
   reportCount: 'report_count',
 }
 

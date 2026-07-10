@@ -15,12 +15,14 @@ const OFFICIAL_REPORT_TARGETS = [
   },
 ]
 
-// urls 필드는 B(백엔드) 작업 완료 전까지 없을 수 있음 → evidence의 url 타입으로 폴백
+// AnalyzeResponse엔 urls 필드가 없음(계약 ①) → evidence에서 URL 관련 항목을 뽑아 씀.
+// type 값은 자유 텍스트라(backend/rules.py) 'url' 같은 고정값이 아니라 실제 타입 문자열로 매칭
+const URL_EVIDENCE_TYPES = new Set(['피싱 URL 명단', '단축 URL', '의심 TLD'])
 function extractUrls(result) {
   if (result?.urls?.length) return result.urls
   return (
     result?.evidence
-      ?.filter((e) => e.type === 'url')
+      ?.filter((e) => URL_EVIDENCE_TYPES.has(e.type))
       .map((e) => e.detail) ?? []
   )
 }
