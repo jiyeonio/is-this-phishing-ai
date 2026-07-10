@@ -224,3 +224,7 @@ __marimo__/
 *.sqlite3
 
 .DS_Store
+한국인터넷진흥원_*.csv
+reputation.db
+backend/reputation.db
+*.csv

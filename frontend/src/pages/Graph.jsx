@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Network, RotateCw, CheckCircle2, Phone } from 'lucide-react'
 import { getGraph } from '../api/client'
 import { MOCK_GRAPH } from '../utils/mockGraph'
 import { getTopNumbers } from '../utils/graphInsights'
+import { computeHighlightIds } from '../utils/graphHighlight'
 import OrgGraph from '../components/OrgGraph'
 import RankedBarList from '../components/RankedBarList'
 
@@ -11,6 +12,7 @@ function Graph() {
   const location = useLocation()
   const [graph, setGraph] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [highlightOn, setHighlightOn] = useState(false)
 
   // 최초 로드는 새로고침 스피너 없이 조용히
   useEffect(() => {
@@ -20,16 +22,31 @@ function Graph() {
   }, [])
 
   // n27(그래프 갱신 요청) → n25(ForceGraph2D 렌더링): 사용자가 직접 누르는 새로고침
+  // 갱신하면 "방금 신고됨" 강조는 해제 (새 그래프 기준으로 초기화)
   const handleRefresh = () => {
     setRefreshing(true)
+    setHighlightOn(false)
     getGraph()
       .then(setGraph)
       .catch((err) => console.error('그래프 로드 실패:', err))
       .finally(() => setRefreshing(false))
   }
 
+  // 신고 직후 진입하면 강조 ON. 자동 해제 없음 —
+  // 사용자가 '그래프 갱신'을 누르거나 다음 신고를 하기 전까지 계속 강조 유지.
+  const reported = location.state?.justReported ? location.state : null
+  useEffect(() => {
+    if (reported) setHighlightOn(true)
+  }, [reported])
+
   const activeGraph = graph ?? MOCK_GRAPH
   const topNumbers = getTopNumbers(activeGraph)
+
+  // 방금 신고한 문자와 매칭되는 노드 id (강조 대상)
+  const highlightIds = useMemo(
+    () => (highlightOn && reported ? computeHighlightIds(activeGraph, reported) : new Set()),
+    [highlightOn, reported, activeGraph],
+  )
 
   return (
     <div className="flex flex-col gap-8">
@@ -90,7 +107,7 @@ function Graph() {
         </div>
       </div>
 
-      <OrgGraph graph={activeGraph} />
+      <OrgGraph graph={activeGraph} highlightIds={highlightIds} />
 
       {topNumbers.length > 0 && (
         <RankedBarList

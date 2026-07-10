@@ -55,6 +55,7 @@ def analyze(text: str, sender: str | None = None) -> dict:
         "evidence": evidence,
         "signals": signals,
         "cluster": cluster,
+        "urls": pre["urls"],
     }
 
 

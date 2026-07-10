@@ -62,6 +62,9 @@ class AnalyzeResponse(BaseModel):
     cluster: Optional[Cluster] = Field(
         None, description="조직 클러스터 (매칭 없으면 null)"
     )
+    urls: list[str] = Field(
+        default_factory=list, description="문자에서 추출된 URL 목록"
+    )
 
 
 # --- ② /api/graph ------------------------------------------------------
@@ -96,6 +99,22 @@ class ReportRequest(BaseModel):
 class ReportResponse(BaseModel):
     ok: bool = Field(True, description="신고 접수 여부")
     cluster_count: int = Field(..., description="갱신 후 클러스터 개수")
+
+
+# --- ④ /api/trends -----------------------------------------------------
+# 유저 신고(source='user')만 집계. 프론트 normalize.js 가 label/count 를 읽음.
+class TrendItem(BaseModel):
+    label: str = Field(..., description="문구 또는 도메인")
+    count: int = Field(..., description="유저 신고 등장 횟수")
+
+
+class TrendsResponse(BaseModel):
+    top_phrases: list[TrendItem] = Field(
+        default_factory=list, description="최다 신고 문구 (유저 신고 기준)"
+    )
+    top_urls: list[TrendItem] = Field(
+        default_factory=list, description="최다 신고 도메인 (유저 신고 기준)"
+    )
 
 
 # --- 헬스체크 ----------------------------------------------------------

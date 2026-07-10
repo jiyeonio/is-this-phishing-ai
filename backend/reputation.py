@@ -55,6 +55,7 @@ def init_db() -> None:
                 urls       TEXT    NOT NULL,   -- JSON 배열
                 domains    TEXT    NOT NULL,   -- JSON 배열
                 tokens     TEXT    NOT NULL,   -- JSON 배열
+                source     TEXT    NOT NULL DEFAULT 'user',  -- 'seed'(시드) | 'user'(유저 신고)
                 created_at TEXT    NOT NULL
             )
             """
@@ -73,32 +74,36 @@ def _seed(con: sqlite3.Connection) -> None:
     with open(config.REPORTS_SEED_PATH, encoding="utf-8") as f:
         rows = json.load(f)
     for r in rows:
-        _insert(con, r.get("text", ""), r.get("sender"))
+        _insert(con, r.get("text", ""), r.get("sender"), source="seed")
     con.commit()
 
 
-def _insert(con: sqlite3.Connection, text: str, sender):
-    """report 1건 삽입. text/sender 로 pre 를 뽑아 도메인·토큰까지 저장."""
+def _insert(con: sqlite3.Connection, text: str, sender, source: str = "user"):
+    """report 1건 삽입. text/sender 로 pre 를 뽑아 도메인·토큰까지 저장.
+
+    source: 'seed'(시드 데이터) | 'user'(유저 신고, 기본값). 트렌드는 'user'만 셈.
+    """
     pre = preprocess(text, sender)
     con.execute(
-        "INSERT INTO reports (text, sender, urls, domains, tokens, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO reports (text, sender, urls, domains, tokens, source, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             text,
             pre["sender"],
             json.dumps(pre["urls"], ensure_ascii=False),
             json.dumps(pre["domains"], ensure_ascii=False),
             json.dumps(pre["tokens"], ensure_ascii=False),
+            source,
             _now(),
         ),
     )
 
 
 def add_report(text: str, sender=None) -> dict:
-    """신고 저장 (/api/report). 저장된 report dict 반환."""
+    """신고 저장 (/api/report). 저장된 report dict 반환. 유저 신고이므로 source='user'."""
     con = _connect()
     try:
-        _insert(con, text, sender)
+        _insert(con, text, sender, source="user")
         con.commit()
         rid = con.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
@@ -106,29 +111,44 @@ def add_report(text: str, sender=None) -> dict:
     return {"id": rid, "text": text, "sender": sender}
 
 
+def _row_to_dict(r: sqlite3.Row) -> dict:
+    return {
+        "id": r["id"],
+        "text": r["text"],
+        "sender": r["sender"],
+        "urls": json.loads(r["urls"]),
+        "domains": json.loads(r["domains"]),
+        "tokens": json.loads(r["tokens"]),
+        "source": r["source"],
+        "created_at": r["created_at"],
+    }
+
+
 def get_reports() -> list[dict]:
-    """저장된 모든 신고를 dict 리스트로 반환 (graph.py 가 소비)."""
+    """저장된 모든 신고(시드+유저)를 dict 리스트로 반환 (graph.py 가 소비)."""
     con = _connect()
     try:
         rows = con.execute(
-            "SELECT id, text, sender, urls, domains, tokens, created_at FROM reports"
+            "SELECT id, text, sender, urls, domains, tokens, source, created_at "
+            "FROM reports"
         ).fetchall()
     finally:
         con.close()
-    out = []
-    for r in rows:
-        out.append(
-            {
-                "id": r["id"],
-                "text": r["text"],
-                "sender": r["sender"],
-                "urls": json.loads(r["urls"]),
-                "domains": json.loads(r["domains"]),
-                "tokens": json.loads(r["tokens"]),
-                "created_at": r["created_at"],
-            }
-        )
-    return out
+    return [_row_to_dict(r) for r in rows]
+
+
+def get_reports_by_source(source: str) -> list[dict]:
+    """특정 source('seed' | 'user')의 신고만 필터해 반환. 트렌드는 'user'만 사용."""
+    con = _connect()
+    try:
+        rows = con.execute(
+            "SELECT id, text, sender, urls, domains, tokens, source, created_at "
+            "FROM reports WHERE source = ?",
+            (source,),
+        ).fetchall()
+    finally:
+        con.close()
+    return [_row_to_dict(r) for r in rows]
 
 
 def report_count() -> int:

@@ -62,7 +62,15 @@ function Report() {
     setSubmitting(true)
     try {
       await report(text, sender)
-      navigate('/graph', { state: { justReported: true } })
+      // 방금 신고한 문자 정보도 함께 넘겨 그래프에서 해당 노드를 강조 표시
+      navigate('/graph', {
+        state: {
+          justReported: true,
+          reportedText: text,
+          reportedSender: sender,
+          reportedUrls: extractUrls(result),
+        },
+      })
     } catch (err) {
       console.error('신고 요청 실패:', err)
       setSubmitting(false)

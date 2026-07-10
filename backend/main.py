@@ -8,6 +8,7 @@
     POST /api/analyze  문자 분석 (계약 ①)
     GET  /api/graph    조직 그래프 (계약 ②)
     POST /api/report   신고 저장 + 그래프 갱신 (계약 ③)
+    GET  /api/trends   위협 트렌드 (유저 신고만 집계, 계약 ④)
 
 엔진(classifier·rules·reputation·graph)은 서버 시작 시 lifespan 에서 1회
 초기화해 프로세스 내내 재사용. 신고로 데이터가 바뀌면 그래프만 갱신됨.
@@ -22,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import config
 from backend import analyze as analyze_svc
 from backend import graph, reputation
+from backend import trends as trends_svc
 from backend.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -29,6 +31,7 @@ from backend.schemas import (
     HealthResponse,
     ReportRequest,
     ReportResponse,
+    TrendsResponse,
 )
 
 
@@ -79,3 +82,9 @@ def report(req: ReportRequest) -> ReportResponse:
     """신고 저장 + 그래프 갱신 → {ok, cluster_count} (계약 ③)."""
     cluster_count = analyze_svc.record_report(req.text, req.sender)
     return ReportResponse(ok=True, cluster_count=cluster_count)
+
+
+@app.get("/api/trends", response_model=TrendsResponse)
+def get_trends() -> dict:
+    """위협 트렌드 — 유저 신고(source='user')만 집계 (계약 ④)."""
+    return trends_svc.get_trends()
