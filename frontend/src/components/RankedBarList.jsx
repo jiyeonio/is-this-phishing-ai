@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 
+// 순위 기반 심각도 표시 — 상위권일수록 진한 색 (실제 위험도 필드가 아니라 순위 기반 근사치)
+const RANK_DOT_COLOR = ['bg-red-500', 'bg-red-500', 'bg-amber-500', 'bg-amber-500']
+
 function RankedBarList({ title, icon: Icon, colorClass, items, delayMs = 0 }) {
   const maxCount = Math.max(...items.map((item) => item.count), 1)
   const [grown, setGrown] = useState(false)
@@ -19,31 +22,42 @@ function RankedBarList({ title, icon: Icon, colorClass, items, delayMs = 0 }) {
         <Icon size={16} className="text-slate-400" strokeWidth={2.25} />
         <p className="text-sm font-medium text-slate-700">{title}</p>
       </div>
-      <div className="flex flex-col gap-3">
-        {items.map((item) => {
-          const percent = Math.round((item.count / maxCount) * 100)
-          return (
-            <div
-              key={item.label}
-              className="flex flex-col gap-1"
-              title={`${item.label}: ${item.count.toLocaleString()}건`}
-            >
-              <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-                <span className="truncate">{item.label}</span>
-                <span className="flex-shrink-0 font-semibold text-slate-800">
-                  {item.count.toLocaleString()}건
-                </span>
+      {items.length === 0 ? (
+        <p className="text-xs text-slate-400">아직 집계된 데이터가 없습니다.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {items.map((item, i) => {
+            const percent = Math.round((item.count / maxCount) * 100)
+            return (
+              <div
+                key={item.label}
+                className="flex flex-col gap-1"
+                title={`${item.label}: ${item.count.toLocaleString()}건`}
+              >
+                <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+                  <span className="flex items-center gap-1.5 truncate">
+                    {RANK_DOT_COLOR[i] && (
+                      <span
+                        className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${RANK_DOT_COLOR[i]}`}
+                      />
+                    )}
+                    <span className="truncate">{item.label}</span>
+                  </span>
+                  <span className="flex-shrink-0 font-semibold text-slate-800">
+                    {item.count.toLocaleString()}건
+                  </span>
+                </div>
+                <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-r-full transition-all duration-700 ease-out ${colorClass}`}
+                    style={{ width: grown ? `${percent}%` : '0%' }}
+                  />
+                </div>
               </div>
-              <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className={`h-full rounded-r-full transition-all duration-700 ease-out ${colorClass}`}
-                  style={{ width: grown ? `${percent}%` : '0%' }}
-                />
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

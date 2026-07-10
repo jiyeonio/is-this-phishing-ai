@@ -1,6 +1,6 @@
 // 백엔드 응답을 프론트 전역에서 쓰는 표준 모양으로 맞추는 자리.
 // INTEGRATION.md 계약이 확정/변경되면 이 파일만 고치면 되고,
-// Analyze/Report/Trends/Lookup/OrgGraph 등 나머지 코드는 건드릴 필요 없음.
+// Analyze/Report/Trends/Graph/OrgGraph 등 나머지 코드는 건드릴 필요 없음.
 
 // 계약 ②: graph.to_json() → { nodes, edges, cluster_count }
 // react-force-graph는 edges가 아니라 links를 기대하므로(가이드 C5 주석 참고),
@@ -39,6 +39,5 @@ export function normalizeTrends(raw) {
   return {
     top_phrases: normalizeTrendItems(raw.top_phrases),
     top_urls: normalizeTrendItems(raw.top_urls),
-    top_orgs: normalizeTrendItems(raw.top_orgs),
   }
 }

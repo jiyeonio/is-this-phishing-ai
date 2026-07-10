@@ -23,7 +23,7 @@ export const analyze = (text, sender) =>
 export const getGraph = () =>
   fetch("/api/graph").then(handleResponse).then(normalizeGraph);
 
-// B6 신규, 계약 미확정: GET /api/trends → { top_phrases, top_urls, top_orgs }
+// B6 신규, 계약 미확정: GET /api/trends → { top_phrases, top_urls }
 export const getTrends = () =>
   fetch("/api/trends").then(handleResponse).then(normalizeTrends);
 

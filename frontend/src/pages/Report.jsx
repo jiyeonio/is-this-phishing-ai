@@ -1,15 +1,8 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import {
-  ArrowLeft,
-  RotateCw,
-  ShieldCheck,
-  ExternalLink,
-  CheckCircle2,
-} from 'lucide-react'
-import { report, getGraph } from '../api/client'
+import { ArrowLeft, RotateCw, ShieldCheck, ExternalLink } from 'lucide-react'
+import { report } from '../api/client'
 import { buildReportText } from '../utils/buildReportText'
-import OrgGraph from '../components/OrgGraph'
 
 const CARD_CLASS =
   'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8'
@@ -49,8 +42,6 @@ function Report() {
     }),
   )
   const [submitting, setSubmitting] = useState(false)
-  const [status, setStatus] = useState(null)
-  const [graph, setGraph] = useState(null)
 
   const regeneratePreview = () => {
     setPreviewText(
@@ -64,22 +55,14 @@ function Report() {
     )
   }
 
+  // n21(PhishGuard 신고 제출) → n22(완료 메시지) → n23(그래프 갱신) → n24(조직 그래프 화면)
   const handleReportToDb = async () => {
     setSubmitting(true)
-    setStatus(null)
     try {
       await report(text, sender)
-      setStatus('신고 완료, 평판DB 반영됨')
-
-      try {
-        const data = await getGraph()
-        setGraph(data)
-      } catch (err) {
-        console.error('그래프 새로고침 실패:', err)
-      }
+      navigate('/graph', { state: { justReported: true } })
     } catch (err) {
       console.error('신고 요청 실패:', err)
-    } finally {
       setSubmitting(false)
     }
   }
@@ -125,7 +108,7 @@ function Report() {
               onChange={(e) => setText(e.target.value)}
               placeholder="문자 내용을 입력하세요"
               rows={6}
-              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-slate-900 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
             />
           </div>
 
@@ -138,14 +121,14 @@ function Report() {
               value={sender}
               onChange={(e) => setSender(e.target.value)}
               placeholder="발신번호 (선택)"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-slate-900 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
             />
           </div>
 
           <button
             type="button"
             onClick={regeneratePreview}
-            className="flex items-center gap-1.5 self-start text-sm font-medium text-blue-600 transition hover:text-blue-500"
+            className="flex items-center gap-1.5 self-start text-sm font-medium text-slate-700 underline transition hover:text-slate-900"
           >
             <RotateCw size={14} strokeWidth={2.25} />
             신고 문구 미리보기 새로고침
@@ -159,11 +142,14 @@ function Report() {
             <label className="text-sm font-medium text-slate-700">
               신고 문구 미리보기 (수정 가능)
             </label>
+            <p className="text-xs text-slate-400">
+              문구를 검토하고 필요시 수정 후 신고해주세요.
+            </p>
             <textarea
               value={previewText}
               onChange={(e) => setPreviewText(e.target.value)}
               rows={12}
-              className="w-full resize-none whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+              className="w-full resize-none whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-800 outline-none transition focus:border-slate-900 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
             />
           </div>
 
@@ -172,7 +158,7 @@ function Report() {
               type="button"
               onClick={handleReportToDb}
               disabled={submitting}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:from-blue-500 hover:to-cyan-500 active:scale-[0.98] active:from-blue-700 active:to-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <ShieldCheck size={16} strokeWidth={2.25} />
               {submitting ? '제출 중...' : 'PhishGuard에 신고'}
@@ -190,17 +176,8 @@ function Report() {
               </button>
             ))}
           </div>
-
-          {status && (
-            <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <CheckCircle2 size={15} strokeWidth={2.25} />
-              {status}
-            </p>
-          )}
         </div>
       </div>
-
-      {graph && <OrgGraph graph={graph} />}
     </div>
   )
 }

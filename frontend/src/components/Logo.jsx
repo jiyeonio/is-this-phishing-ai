@@ -11,27 +11,14 @@ function Logo({ size = 32, className = '' }) {
       role="img"
       aria-label="PhishGuard 로고"
     >
-      <defs>
-        <linearGradient
-          id="pg-logo-bg"
-          x1="2"
-          y1="2"
-          x2="30"
-          y2="30"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0" stopColor="#2563EB" />
-          <stop offset="1" stopColor="#0891B2" />
-        </linearGradient>
-      </defs>
-      <rect width="32" height="32" rx="9" fill="url(#pg-logo-bg)" />
+      <rect width="32" height="32" rx="9" fill="#0F172A" />
       <path
         d="M16 6L23 9V14.5C23 19.5 20 23.7 16 25C12 23.7 9 19.5 9 14.5V9L16 6Z"
         fill="white"
       />
       <path
         d="M12.5 15.3L14.9 17.7L19.5 12.3"
-        stroke="#1E3A8A"
+        stroke="#0F172A"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"

@@ -16,6 +16,12 @@ const NODE_TYPE_COLORS = {
 }
 const DEFAULT_NODE_COLOR = '#64748b'
 
+const LEGEND_ITEMS = [
+  { type: 'number', label: '번호' },
+  { type: 'url', label: 'URL' },
+  { type: 'phrase', label: '문구' },
+]
+
 function OrgGraph({ graph = MOCK_GRAPH }) {
   const data = {
     nodes: graph[GRAPH_FIELDS.nodes],
@@ -46,6 +52,21 @@ function OrgGraph({ graph = MOCK_GRAPH }) {
           linkColor={() => 'rgba(100, 116, 139, 0.35)'}
           nodeRelSize={5}
         />
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        {LEGEND_ITEMS.map(({ type, label }) => (
+          <span
+            key={type}
+            className="flex items-center gap-1.5 text-xs text-slate-500"
+          >
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: NODE_TYPE_COLORS[type] }}
+            />
+            {label}
+          </span>
+        ))}
       </div>
     </div>
   )

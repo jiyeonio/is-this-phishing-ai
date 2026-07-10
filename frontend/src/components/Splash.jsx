@@ -7,8 +7,8 @@ function Splash() {
       style={{ fontFamily: 'Pretendard, system-ui, sans-serif' }}
     >
       <div className="relative flex h-20 w-20 items-center justify-center">
-        <span className="absolute inset-0 animate-ping rounded-2xl bg-blue-300/40" />
-        <div className="relative shadow-lg shadow-blue-500/30 [animation:splash-pop_0.5s_ease-out]">
+        <span className="absolute inset-0 animate-ping rounded-2xl bg-slate-300/40" />
+        <div className="relative rounded-2xl shadow-lg shadow-slate-900/20 [animation:splash-pop_0.5s_ease-out]">
           <Logo size={64} />
         </div>
       </div>
@@ -23,7 +23,7 @@ function Splash() {
       </div>
 
       <div className="relative h-1 w-28 overflow-hidden rounded-full bg-slate-200 [animation:splash-fade-in_0.4s_ease-out_0.3s_both]">
-        <div className="absolute inset-y-0 w-1/3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 [animation:splash-loading_0.9s_ease-in-out_infinite]" />
+        <div className="absolute inset-y-0 w-1/3 rounded-full bg-slate-900 [animation:splash-loading_0.9s_ease-in-out_infinite]" />
       </div>
     </div>
   )

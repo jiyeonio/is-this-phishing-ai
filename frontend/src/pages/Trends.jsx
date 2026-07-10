@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, MessageSquareText, Link2, Building2 } from 'lucide-react'
+import {
+  TrendingUp,
+  MessageSquareText,
+  Link2,
+  AlertTriangle,
+} from 'lucide-react'
 import { getTrends } from '../api/client'
 import RankedBarList from '../components/RankedBarList'
 
@@ -17,50 +22,46 @@ const MOCK_TRENDS = {
     { label: 'gov-refund.net', count: 24 },
     { label: 'short.url/kk22', count: 15 },
   ],
-  top_orgs: [
-    { label: '국세청 사칭', count: 33 },
-    { label: '경찰청 사칭', count: 27 },
-    { label: 'CJ대한통운 사칭', count: 22 },
-    { label: '농협은행 사칭', count: 14 },
-  ],
 }
 
-// 색상은 dataviz 팔레트 검증(라이트 서피스 기준 명도밴드/CVD/대비) 통과한 조합
 const SECTIONS = [
   {
     key: 'top_phrases',
     title: '최다 신고 문구',
     icon: MessageSquareText,
-    colorClass: 'bg-blue-600',
+    colorClass: 'bg-slate-900',
   },
   {
     key: 'top_urls',
     title: '최다 신고 URL',
     icon: Link2,
-    colorClass: 'bg-cyan-600',
-  },
-  {
-    key: 'top_orgs',
-    title: '최다 사칭 기관',
-    icon: Building2,
-    colorClass: 'bg-amber-600',
+    colorClass: 'bg-slate-900',
   },
 ]
 
+const sumCounts = (items) => items?.reduce((sum, item) => sum + item.count, 0) ?? 0
+
 function Trends() {
   const [trends, setTrends] = useState(MOCK_TRENDS)
+  const [loadError, setLoadError] = useState(null)
 
   useEffect(() => {
     getTrends()
-      .then(setTrends)
-      .catch((err) => console.error('트렌드 로드 실패:', err))
+      .then((data) => {
+        setTrends(data)
+        setLoadError(null)
+      })
+      .catch((err) => {
+        console.error('트렌드 로드 실패:', err)
+        setLoadError('실시간 데이터를 불러오지 못해 예시 데이터를 보여드립니다.')
+      })
   }, [])
 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <TrendingUp className="text-blue-600" size={22} strokeWidth={2.25} />
+          <TrendingUp className="text-slate-900" size={22} strokeWidth={2.25} />
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
             위협 트렌드
           </h1>
@@ -68,6 +69,30 @@ function Trends() {
         <p className="text-sm text-slate-500">
           최근 접수된 신고를 기반으로 자주 등장하는 스미싱 패턴을 집계합니다.
         </p>
+      </div>
+
+      {loadError && (
+        <div className="flex items-start gap-3 rounded-2xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700 [animation:card-in_0.3s_ease-out]">
+          <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+          <span>{loadError}</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
+          <p className="text-xl font-bold text-slate-900">
+            {(
+              sumCounts(trends.top_phrases) + sumCounts(trends.top_urls)
+            ).toLocaleString()}
+          </p>
+          <p className="text-xs text-slate-400">총 신고</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
+          <p className="text-xl font-bold text-slate-900">
+            {trends.top_urls?.length ?? 0}
+          </p>
+          <p className="text-xs text-slate-400">위험 도메인</p>
+        </div>
       </div>
 
       {SECTIONS.map(({ key, title, icon, colorClass }, i) => (

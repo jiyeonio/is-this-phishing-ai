@@ -1,34 +1,41 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AlertTriangle,
   ShieldCheck,
   ShieldAlert,
   ShieldX,
   ShieldQuestion,
   Building2,
   Flag,
-  Sparkles,
+  RotateCw,
+  Home as HomeIcon,
+  ChevronRight,
 } from 'lucide-react'
 
 const LEVEL_STYLES = {
   safe: {
     label: '안전',
-    badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    badge: 'border-emerald-300 bg-emerald-50 text-emerald-700',
     bar: 'bg-emerald-500',
+    text: 'text-emerald-600',
     icon: ShieldCheck,
+    message: '위험 신호가 발견되지 않았습니다.',
   },
   suspicious: {
     label: '의심',
-    badge: 'border-amber-200 bg-amber-50 text-amber-700',
+    badge: 'border-amber-300 bg-amber-50 text-amber-700',
     bar: 'bg-amber-500',
+    text: 'text-amber-600',
     icon: ShieldAlert,
+    message: '신중한 확인이 필요합니다.',
   },
   danger: {
     label: '위험',
-    badge: 'border-red-200 bg-red-50 text-red-700',
+    badge: 'border-red-300 bg-red-50 text-red-700',
     bar: 'bg-red-500',
+    text: 'text-red-600',
     icon: ShieldX,
+    message: '즉각적인 주의가 필요합니다.',
   },
 }
 
@@ -45,10 +52,31 @@ const CLUSTER_FIELDS = {
 }
 
 const SIGNAL_ITEMS = [
-  { key: SIGNAL_FIELDS.model, label: '모델' },
-  { key: SIGNAL_FIELDS.rule, label: '규칙' },
-  { key: SIGNAL_FIELDS.reputation, label: '평판' },
+  {
+    key: SIGNAL_FIELDS.model,
+    label: '모델',
+    desc: 'AI 모델이 학습한 스팸·피싱 패턴과의 유사도',
+    barClass: 'bg-red-500',
+    textClass: 'text-red-600',
+  },
+  {
+    key: SIGNAL_FIELDS.rule,
+    label: '규칙',
+    desc: '등록된 위험 도메인·URL 패턴 규칙 일치도',
+    barClass: 'bg-orange-500',
+    textClass: 'text-orange-600',
+  },
+  {
+    key: SIGNAL_FIELDS.reputation,
+    label: '평판',
+    desc: '신고 이력·평판 데이터베이스 기반 위험도',
+    barClass: 'bg-yellow-400',
+    textClass: 'text-yellow-600',
+  },
 ]
+
+// 근거 순위 배지 — 테두리만 있는 무채색 번호 원
+const REASON_RANK_STYLE = 'border border-slate-300 bg-white text-slate-700'
 
 const CARD_CLASS = 'rounded-2xl border border-slate-200 bg-white shadow-sm'
 const COUNT_UP_MS = 600
@@ -75,55 +103,75 @@ function useCountUp(target, durationMs) {
   return value
 }
 
-function ResultSkeleton() {
+function LoadingState() {
   return (
-    <div className={`flex flex-col gap-6 p-5 sm:p-8 ${CARD_CLASS}`}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <div className="h-3 w-14 animate-pulse rounded bg-slate-100" />
-          <div className="h-9 w-24 animate-pulse rounded bg-slate-100" />
-        </div>
-        <div className="h-7 w-16 animate-pulse rounded-full bg-slate-100" />
+    <div
+      className={`flex flex-col items-center gap-4 p-10 text-center ${CARD_CLASS}`}
+    >
+      <p className="text-base font-bold text-slate-900">분석 진행 중</p>
+      <div className="flex gap-2">
+        {[0, 150, 300].map((delay) => (
+          <span
+            key={delay}
+            className="h-2.5 w-2.5 animate-bounce rounded-full bg-slate-300"
+            style={{ animationDelay: `${delay}ms` }}
+          />
+        ))}
       </div>
-      <div className="h-2 w-full animate-pulse rounded-full bg-slate-100" />
-      <div className="flex flex-col gap-2">
-        <div className="h-3 w-10 animate-pulse rounded bg-slate-100" />
-        <div className="h-3 w-5/6 animate-pulse rounded bg-slate-100" />
-        <div className="h-3 w-2/3 animate-pulse rounded bg-slate-100" />
+      <div className="flex flex-col gap-1">
+        <p className="text-sm text-slate-500">보안 데이터베이스를 검색하고 있습니다</p>
+        <p className="text-xs text-slate-400">잠시만 기다려주세요</p>
       </div>
-      <p className="flex items-center justify-center gap-1.5 text-sm">
-        <Sparkles size={14} className="flex-shrink-0 text-blue-400" />
-        <span
-          className="bg-[length:200%_100%] bg-clip-text font-medium text-transparent [animation:ai-shimmer_1.8s_linear_infinite]"
-          style={{
-            backgroundImage:
-              'linear-gradient(90deg, #94a3b8 40%, #1e293b 50%, #94a3b8 60%)',
-          }}
-        >
-          AI가 문자를 분석하고 있어요...
-        </span>
-      </p>
     </div>
   )
 }
 
-function Result({ result, loading, error, text, sender }) {
+// 실제 에러 코드는 백엔드 계약에 없어 고정 문자열로 표기 (추후 서버 에러 코드 붙이면 교체)
+function ErrorState({ message, onRetry }) {
+  const navigate = useNavigate()
+
+  return (
+    <div className={`flex flex-col items-center gap-5 p-8 text-center ${CARD_CLASS}`}>
+      <div className="flex flex-col gap-2">
+        <p className="text-lg font-bold text-slate-900">분석 오류 발생</p>
+        <p className="text-sm text-slate-500">{message}</p>
+      </div>
+
+      <div className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left">
+        <p className="text-xs text-slate-400">오류 코드</p>
+        <p className="font-mono text-sm text-slate-600">ERR_ANALYZE_FAILED</p>
+      </div>
+
+      <div className="flex w-full flex-col gap-3">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-800"
+        >
+          <RotateCw size={15} strokeWidth={2.25} />
+          다시 분석하기
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          <HomeIcon size={15} strokeWidth={2.25} />
+          홈으로 돌아가기
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Result({ result, loading, error, text, sender, onReset }) {
   const navigate = useNavigate()
   const percent = Math.round((result?.risk_score ?? 0) * 100)
   const animatedPercent = useCountUp(percent, COUNT_UP_MS)
 
-  if (loading) return <ResultSkeleton />
+  if (loading) return <LoadingState />
 
-  if (error) {
-    return (
-      <div
-        className={`flex items-start gap-3 border-red-200 bg-red-50 p-6 text-sm text-red-700 ${CARD_CLASS} [animation:card-in_0.3s_ease-out]`}
-      >
-        <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />
-        <span>{error}</span>
-      </div>
-    )
-  }
+  if (error) return <ErrorState message={error} onRetry={onReset} />
 
   if (!result) {
     return (
@@ -149,11 +197,16 @@ function Result({ result, loading, error, text, sender }) {
     <div
       className={`flex flex-col gap-6 p-5 sm:p-8 ${CARD_CLASS} [animation:card-in_0.35s_ease-out]`}
     >
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-semibold text-slate-700">분석 결과</p>
+        <p className="text-xs text-slate-400">최종 판정 및 탐지 근거 요약</p>
+      </div>
+
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-sm text-slate-400">위험도</p>
           <p
-            className="text-4xl font-extrabold text-slate-900"
+            className={`text-4xl font-extrabold ${levelStyle.text}`}
             style={{ fontVariantNumeric: 'tabular-nums' }}
           >
             {animatedPercent}%
@@ -167,24 +220,36 @@ function Result({ result, loading, error, text, sender }) {
         </span>
       </div>
 
-      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${levelStyle.bar}`}
-          style={{ width: `${percent}%` }}
-        />
+      <div className="flex flex-col gap-1.5">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${levelStyle.bar}`}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-[11px] text-slate-300">
+          <span>0</span>
+          <span>50</span>
+          <span>100</span>
+        </div>
+        <p className="text-xs font-medium text-slate-500">{levelStyle.message}</p>
       </div>
 
       {reasons?.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium text-slate-700">근거</p>
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2.5">
             {reasons.map((reason, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-2 text-sm text-slate-600"
-              >
-                <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
-                {reason}
+              <li key={i} className="flex items-start gap-3 text-sm">
+                <span
+                  className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${REASON_RANK_STYLE}`}
+                >
+                  {i + 1}
+                </span>
+                <div className="flex flex-col">
+                  <span className="text-slate-700">{reason}</span>
+                  <span className="text-xs text-slate-400">우선순위 {i + 1}</span>
+                </div>
               </li>
             ))}
           </ul>
@@ -212,21 +277,22 @@ function Result({ result, loading, error, text, sender }) {
       {signals && (
         <div className="flex flex-col gap-3">
           <p className="text-sm font-medium text-slate-700">
-            신호 분석 (투명성)
+            신호 분석
           </p>
-          {SIGNAL_ITEMS.map(({ key, label }) => {
+          {SIGNAL_ITEMS.map(({ key, label, desc, barClass, textClass }) => {
             const value = signals[key]
             if (value == null) return null
             const signalPercent = Math.round(value * 100)
             return (
               <div key={key} className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>{label}</span>
-                  <span>{signalPercent}%</span>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span className="font-medium text-slate-600">{label}</span>
+                  <span className={`font-semibold ${textClass}`}>{signalPercent}%</span>
                 </div>
+                <p className="text-[11px] text-slate-400">{desc}</p>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                    className={`h-full rounded-full transition-all duration-500 ${barClass}`}
                     style={{ width: `${signalPercent}%` }}
                   />
                 </div>
@@ -237,21 +303,52 @@ function Result({ result, loading, error, text, sender }) {
       )}
 
       {cluster && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          <Building2 size={16} className="flex-shrink-0 text-slate-400" />
-          조직 {cluster[CLUSTER_FIELDS.orgCount]}개 연결, 신고{' '}
-          {cluster[CLUSTER_FIELDS.reportCount]}건
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium text-slate-700">클러스터 요약</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-400">연결된 조직</p>
+              <p className="text-xl font-bold text-slate-900">
+                {cluster[CLUSTER_FIELDS.orgCount]}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-400">총 신고 건수</p>
+              <p className="text-xl font-bold text-slate-900">
+                {cluster[CLUSTER_FIELDS.reportCount]}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/graph')}
+            className="flex items-center gap-1 self-start text-xs font-medium text-slate-700 underline transition hover:text-slate-900"
+          >
+            <Building2 size={13} strokeWidth={2.25} />
+            그래프에서 자세히 보기
+            <ChevronRight size={13} strokeWidth={2.25} />
+          </button>
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => navigate('/report', { state: { text, sender, result } })}
-        className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-6 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 active:bg-red-200"
-      >
-        <Flag size={16} strokeWidth={2.25} />
-        신고하기
-      </button>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={() => navigate('/report', { state: { text, sender, result } })}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-800 active:bg-slate-950"
+        >
+          <Flag size={16} strokeWidth={2.25} />
+          신고하기
+        </button>
+        <button
+          type="button"
+          onClick={onReset}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          <RotateCw size={15} strokeWidth={2.25} />
+          다시 분석하기
+        </button>
+      </div>
     </div>
   )
 }

@@ -1,27 +1,11 @@
-import { useState, useEffect } from 'react'
-import { ShieldAlert, ScanSearch, Phone } from 'lucide-react'
-import { analyze, getGraph } from '../api/client'
+import { useState } from 'react'
+import { ShieldAlert, ScanSearch, Info } from 'lucide-react'
+import { analyze } from '../api/client'
 import Result from '../components/Result'
-import OrgGraph from '../components/OrgGraph'
-import RankedBarList from '../components/RankedBarList'
-import { getTopNumbers } from '../utils/graphInsights'
-import { MOCK_GRAPH } from '../utils/mockGraph'
+import { loadHistory, addHistoryEntry, formatRelativeTime } from '../utils/history'
 
-// ============================================================
-// 🚧 TEMP TEST MOCK — 백엔드 연결되면 이 블록과 아래 버튼 삭제할 것 🚧
-// ============================================================
-const MOCK_RESULT = {
-  risk_score: 0.75,
-  level: 'danger',
-  reasons: ['의심스러운 단축 URL', '긴급성 유발 문구'],
-  evidence: [
-    { type: 'url', detail: 'bit.ly/3xAbCd' },
-    { type: 'phrase', detail: '계좌가 정지됩니다' },
-  ],
-  signals: { model: 0.8, rule: 0.7, reputation: 0.65 },
-  cluster: { org_count: 3, report_count: 12 },
-}
-// ============================================================
+const HISTORY_BADGE = 'border-slate-300 bg-white text-slate-700'
+const HISTORY_LABEL = { safe: '안전', suspicious: '주의', danger: '위험' }
 
 function Analyze() {
   const [text, setText] = useState('')
@@ -29,13 +13,7 @@ function Analyze() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [graph, setGraph] = useState(null)
-
-  useEffect(() => {
-    getGraph()
-      .then(setGraph)
-      .catch((err) => console.error('그래프 로드 실패:', err))
-  }, [])
+  const [history, setHistory] = useState(() => loadHistory())
 
   const handleAnalyze = async () => {
     setLoading(true)
@@ -43,6 +21,7 @@ function Analyze() {
     try {
       const data = await analyze(text, sender)
       setResult(data)
+      setHistory(addHistoryEntry({ text, sender, level: data.level }))
     } catch {
       setError('분석 요청에 실패했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
@@ -50,19 +29,19 @@ function Analyze() {
     }
   }
 
-  // 🚧 TEMP TEST HANDLER — 위 MOCK_RESULT와 함께 삭제할 것 🚧
-  const handleShowMockResult = () => {
+  // n17(다시 분석하기) → n4(문자 분석 입력): 입력/결과를 모두 비우고 새 분석을 시작할 수 있게 함
+  const handleReset = () => {
+    setText('')
+    setSender('')
+    setResult(null)
     setError(null)
-    setResult(MOCK_RESULT)
   }
-
-  const topNumbers = getTopNumbers(graph ?? MOCK_GRAPH)
 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <ShieldAlert className="text-blue-600" size={22} strokeWidth={2.25} />
+          <ShieldAlert className="text-slate-900" size={22} strokeWidth={2.25} />
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
             문자 위험도 분석
           </h1>
@@ -83,7 +62,7 @@ function Analyze() {
               onChange={(e) => setText(e.target.value)}
               placeholder="문자 내용을 입력하세요"
               rows={6}
-              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-slate-900 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
             />
           </div>
 
@@ -96,7 +75,7 @@ function Analyze() {
               value={sender}
               onChange={(e) => setSender(e.target.value)}
               placeholder="발신번호 (선택)"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-slate-900 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
             />
           </div>
 
@@ -104,20 +83,22 @@ function Analyze() {
             type="button"
             onClick={handleAnalyze}
             disabled={loading}
-            className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:from-blue-500 hover:to-cyan-500 hover:shadow-blue-600/30 active:scale-[0.98] active:from-blue-700 active:to-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
+            className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
           >
             <ScanSearch size={18} strokeWidth={2.25} />
             {loading ? '분석 중...' : '위험도 분석하기'}
           </button>
+        </div>
+      </div>
 
-          {/* 🚧 TEMP TEST BUTTON — 백엔드 연결되면 삭제할 것 🚧 */}
-          <button
-            type="button"
-            onClick={handleShowMockResult}
-            className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-6 py-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
-          >
-            🚧 [테스트용] 목업 결과 보기
-          </button>
+      <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+        <Info size={16} className="mt-0.5 flex-shrink-0 text-slate-400" />
+        <div>
+          <p className="font-semibold text-slate-700">입력 안내</p>
+          <p className="text-slate-500">
+            문자 본문은 필수 입력 항목입니다. 발신번호는 분석 정확도를
+            높입니다.
+          </p>
         </div>
       </div>
 
@@ -127,17 +108,34 @@ function Analyze() {
         error={error}
         text={text}
         sender={sender}
+        onReset={handleReset}
       />
 
-      {topNumbers.length > 0 && (
-        <RankedBarList
-          title="최근 많이 신고된 발신번호"
-          icon={Phone}
-          colorClass="bg-blue-600"
-          items={topNumbers}
-        />
+      {history.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold text-slate-700">
+            최근 분석 결과
+          </h2>
+          {history.map((h) => (
+            <div
+              key={h.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex flex-col gap-0.5 overflow-hidden">
+                <p className="text-xs text-slate-400">
+                  {h.sender} · {formatRelativeTime(h.timestamp)}
+                </p>
+                <p className="truncate text-sm text-slate-700">{h.snippet}</p>
+              </div>
+              <span
+                className={`flex-shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${HISTORY_BADGE}`}
+              >
+                {HISTORY_LABEL[h.level] ?? '주의'}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
-      <OrgGraph graph={graph ?? undefined} />
     </div>
   )
 }
