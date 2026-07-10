@@ -7,7 +7,8 @@
 ("유저 0인데 트렌드에 숫자" 문제 방지.)
 
 도메인은 graph 와 동일하게 등록도메인(eTLD+1)으로 접어 조직 단위로 집계하고,
-문구는 graph 의 의미 토큰 필터(_meaningful)를 재사용해 범용어를 제외한다.
+문구는 graph 의 정규화 토큰(_norm_tokens: 조사 제거 + STOPWORDS)을 재사용해
+조사 조각("절차를")·범용어·종결어를 제외하고 어간("절차")으로 합쳐 집계한다.
 """
 
 from collections import Counter
@@ -33,7 +34,9 @@ def get_trends() -> dict:
         for d in {graph._reg_domain(d) for d in r["domains"]}:
             if d:
                 url_counter[d] += 1
-        for t in graph._meaningful(r["tokens"]):
+        # graph 와 동일한 정규화(조사 제거 + STOPWORDS + 최소길이) 사용 →
+        # "절차를"/"절차가"가 "절차"로 합쳐지고, 조사 조각·흔한 종결어는 걸러진다.
+        for t in graph._norm_tokens(r["tokens"]):
             phrase_counter[t] += 1
 
     return {

@@ -15,7 +15,8 @@ export function addHistoryEntry({ text, sender, level }) {
   const entry = {
     id: `${Date.now()}`,
     sender: sender?.trim() || '번호 없음',
-    snippet: text.trim().slice(0, 40),
+    // 전체 문자/URL을 보존(뒤 잘림 방지). 화면에서 여러 줄로 전부 표시한다.
+    snippet: text.trim(),
     level,
     timestamp: Date.now(),
   }

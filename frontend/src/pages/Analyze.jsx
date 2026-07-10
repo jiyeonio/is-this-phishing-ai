@@ -119,13 +119,13 @@ function Analyze() {
           {history.map((h) => (
             <div
               key={h.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
             >
-              <div className="flex flex-col gap-0.5 overflow-hidden">
+              <div className="flex min-w-0 flex-col gap-0.5">
                 <p className="text-xs text-slate-400">
                   {h.sender} · {formatRelativeTime(h.timestamp)}
                 </p>
-                <p className="truncate text-sm text-slate-700">{h.snippet}</p>
+                <p className="break-words text-sm text-slate-700">{h.snippet}</p>
               </div>
               <span
                 className={`flex-shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${HISTORY_BADGE}`}

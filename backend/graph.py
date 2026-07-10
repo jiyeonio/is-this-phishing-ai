@@ -63,6 +63,8 @@ STOPWORDS = {
     "안내드립니다", "드립니다", "바랍니다", "있습니다", "되었습니다",
     "정지되었습니다", "하세요", "하시기", "합니다", "됩니다", "습니다",
     "주세요", "십시오", "예정입니다",
+    # 완결형 종결어(토큰이 통째로 굳은 형태 — 어간 추출은 범위 밖이라 흔한 것만 개별 등록)
+    "진행하세요", "필요합니다", "신청하세요", "확인하세요", "클릭하세요",
     # 흔한 조사 붙은 조각 (토큰화 부산물)
     "계좌가", "고객님이", "귀하의", "고객님", "고객", "님",
     # 일반 명사(식별력 낮음)
@@ -99,6 +101,38 @@ def _meaningful(tokens: list[str]) -> set[str]:
     }
 
 
+# 토큰 끝에 붙은 흔한 조사를 떼어 어간으로 비교(그래프 내부 전용 — ai/preprocess 무변경).
+# "절차를"→"절차", "계좌가"→"계좌". 토큰화가 조사를 붙여 "절차를"≠"절차가"로 갈라져
+# 교집합이 쉽게 깨지던 문제를 완화한다. 여러 글자 조사를 먼저 검사(긴 것 우선).
+_JOSA = (
+    "으로", "에서", "에게", "한테", "부터", "까지", "보다",  # 2글자 조사(길이 우선)
+    "을", "를", "이", "가", "은", "는", "의", "에", "로", "와", "과", "도", "만",
+)
+
+
+def _strip_josa(token: str) -> str:
+    """토큰 끝 조사를 1개 제거. 어간이 2글자 미만이 되면 과잉 제거로 보고 원형 유지."""
+    for j in _JOSA:
+        if token.endswith(j) and len(token) - len(j) >= _MIN_TOKEN_LEN:
+            return token[: -len(j)]
+    return token
+
+
+def _norm_tokens(tokens: list[str]) -> set[str]:
+    """조사 제거 + STOPWORDS/길이 필터를 적용한 정규화 의미 토큰 집합(그래프 내부용).
+
+    문구 비교·문구 노드·문구 union이 모두 이 정규화 토큰을 쓴다. STOPWORDS 필터는
+    조사 제거 후 어간 기준으로 유지 → "계좌가"(조각)는 "계좌"로 정규화돼 살아남고,
+    "정지되었습니다" 같은 종결어 STOPWORD는 그대로 걸러진다.
+    """
+    out: set[str] = set()
+    for t in tokens:
+        s = _strip_josa(t)
+        if len(s) >= _MIN_TOKEN_LEN and s not in STOPWORDS:
+            out.add(s)
+    return out
+
+
 # 그래프는 서버 시작 후 1회 계산해 캐시 재사용. 신고로 데이터가 바뀌면
 # invalidate() 로 캐시를 비워 다음 접근 때 다시 계산 (그래프만 갱신).
 _CACHE: dict | None = None
@@ -130,31 +164,49 @@ def _compute() -> dict:
     reports = reputation.get_reports()
     n = len(reports)
 
-    # 신고별 요소 추출 (도메인은 등록도메인 eTLD+1 로 접어 조직 단위로 묶음)
-    doms = [{_reg_domain(d) for d in r["domains"]} for r in reports]
+    # 노드는 서브도메인(풀호스트) 단위, 클러스터링(union)은 등록도메인(eTLD+1) 단위로
+    # 분리한다. 같은 조직(등록도메인)의 서브도메인들이 한 클러스터로 뭉치되, 노드는
+    # 서브도메인마다 하나씩 생겨 조직 덩어리가 서브도메인 노드로 풍성해진다.
+    # _reg_domain 묶기(클러스터 판정)는 그대로 유지 — 노드 해상도만 서브도메인으로 올림.
+    hosts = [set(r["domains"]) for r in reports]                      # 노드용: 풀호스트
+    regs = [{_reg_domain(d) for d in r["domains"]} for r in reports]  # 클러스터용: 등록도메인
     sends = [r["sender"] for r in reports]
-    phrs = [_meaningful(r["tokens"]) for r in reports]
+    phrs = [_norm_tokens(r["tokens"]) for r in reports]  # 조사 제거된 정규화 의미 토큰
 
     # 요소 → 그 요소를 가진 신고 인덱스 목록
-    dom_idx: dict[str, list[int]] = {}
+    host_idx: dict[str, list[int]] = {}   # 노드 생성용(서브도메인)
+    reg_idx: dict[str, list[int]] = {}    # union(클러스터) 용(등록도메인)
     send_idx: dict[str, list[int]] = {}
     tok_idx: dict[str, list[int]] = {}
     for i in range(n):
-        for d in doms[i]:
-            dom_idx.setdefault(d, []).append(i)
+        for h in hosts[i]:
+            host_idx.setdefault(h, []).append(i)
+        for rd in regs[i]:
+            reg_idx.setdefault(rd, []).append(i)
         if sends[i]:
             send_idx.setdefault(sends[i], []).append(i)
         for t in phrs[i]:
             tok_idx.setdefault(t, []).append(i)
 
-    # 공유 요소로 신고 union — 조직 연결은 URL(도메인)·번호 공유로만.
-    # 문구(tok_idx)로는 union 하지 않는다: 흔한 문구("본인인증" 등)를 여러 조직이
-    # 공유해도 서로 다른 조직으로 유지되어, 문구 다리로 생기던 긴 체인을 없앤다.
+    # 공유 요소로 신고 union.
+    # 등록도메인·번호는 1개만 공유해도 union(같은 조직 확실). 문구는 흔한 단어 1개로
+    # 우연히 이어지는 것을 막기 위해 (조사 제거된) 의미 토큰을 2개 이상 공유할 때만 union.
     uf = _UF(n)
-    for group in (dom_idx, send_idx):
+    for group in (reg_idx, send_idx):
         for _, idxs in group.items():
             for j in range(1, len(idxs)):
                 uf.union(idxs[0], idxs[j])
+
+    # 문구 union(조건부): 두 신고의 정규화 의미 토큰 교집합이 _MIN_SHARED_PHRASES 이상일 때만.
+    # 후보를 "토큰이 그 임계치 이상인 신고"로 좁혀 비용을 줄인다(대부분의 KISA URL은
+    # 문구가 0개라 후보에서 빠짐). n이 작아 후보쌍 O(m^2) 비교 허용.
+    phrase_reports = [i for i in range(n) if len(phrs[i]) >= _MIN_SHARED_PHRASES]
+    for a in range(len(phrase_reports)):
+        i = phrase_reports[a]
+        for b in range(a + 1, len(phrase_reports)):
+            k = phrase_reports[b]
+            if len(phrs[i] & phrs[k]) >= _MIN_SHARED_PHRASES:
+                uf.union(i, k)
 
     # 연결요소 → 클러스터 정수 id (루트 순서대로 0..k-1)
     roots = sorted({uf.find(i) for i in range(n)})
@@ -174,8 +226,9 @@ def _compute() -> dict:
         node_ids.add(nid)
         nodes.append({"id": nid, "label": label, "type": ntype, "cluster": cid})
 
-    for d, idxs in dom_idx.items():
-        _add_node(f"url:{d}", d, "url", report_cluster[idxs[0]])
+    # url 노드는 서브도메인(풀호스트) 단위 — 한 조직(등록도메인)당 여러 노드가 생긴다.
+    for h, idxs in host_idx.items():
+        _add_node(f"url:{h}", h, "url", report_cluster[idxs[0]])
     for s, idxs in send_idx.items():
         _add_node(f"num:{s}", s, "number", report_cluster[idxs[0]])
     # 문구 노드는 클러스터별로 분리 생성(id = phrase:<cid>:<token>).
@@ -189,10 +242,12 @@ def _compute() -> dict:
     # 문구 노드는 그 신고가 속한 클러스터의 문구 노드(phrase:<cid>:<t>)에만 매달림.
     # → 문구는 자기 조직의 URL/번호 앵커에만 연결되고 조직끼리 잇지 않는다.
     edge_set: set[tuple[str, str]] = set()
+    # (1) 신고별 star: 한 신고 안의 url/번호/문구 노드를 앵커로 연결.
+    #     사람이 쓴 문자(문구 노드 보유)의 덩어리는 이 경로로 유지된다.
     for i in range(n):
         cid = report_cluster[i]
         ents: list[str] = []
-        ents += [f"url:{d}" for d in doms[i]]
+        ents += [f"url:{h}" for h in hosts[i]]
         if sends[i]:
             ents.append(f"num:{sends[i]}")
         ents += [f"phrase:{cid}:{t}" for t in phrs[i] if t in shared_tokens]
@@ -203,6 +258,19 @@ def _compute() -> dict:
         for other in ents[1:]:
             key = tuple(sorted((anchor, other)))
             edge_set.add(key)
+    # (2) 등록도메인별 star: 같은 조직(등록도메인)의 서브도메인 노드들을 한 앵커
+    #     서브도메인에 매달아 조직 덩어리를 형성한다. mesh(O(k^2)) 대신 star(k-1)로
+    #     엣지 수를 억제해 렌더 성능을 지킨다.
+    reg_hosts: dict[str, list[str]] = {}
+    for h in host_idx:
+        reg_hosts.setdefault(_reg_domain(h), []).append(h)
+    for _, hs in reg_hosts.items():
+        if len(hs) < 2:
+            continue
+        hs_sorted = sorted(hs)
+        anchor = f"url:{hs_sorted[0]}"
+        for h in hs_sorted[1:]:
+            edge_set.add(tuple(sorted((anchor, f"url:{h}"))))
     edges = [{"source": a, "target": b} for a, b in sorted(edge_set)]
 
     # --- 클러스터 집계 ----------------------------------------------
@@ -216,7 +284,7 @@ def _compute() -> dict:
         cid = report_cluster[i]
         c = clusters[cid]
         c["reports"].append(reports[i]["id"])
-        c["domains"] |= doms[i]
+        c["domains"] |= regs[i]  # 매칭·위험도는 등록도메인 기준 유지(match_cluster 계약)
         if sends[i]:
             c["senders"].add(sends[i])
         c["tokens"] |= phrs[i]
@@ -265,7 +333,7 @@ def match_cluster(pre: dict) -> dict | None:
     # 입력 도메인도 같은 등록도메인 기준으로 접어서 클러스터 도메인과 비교
     in_doms = {_reg_domain(d) for d in (pre.get("domains") or [])}
     in_send = pre.get("sender")
-    in_toks = _meaningful(pre.get("tokens", []) or [])
+    in_toks = _norm_tokens(pre.get("tokens", []) or [])  # 클러스터 토큰과 같은 정규화 기준
 
     chosen: int | None = None
 

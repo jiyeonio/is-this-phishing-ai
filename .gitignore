@@ -228,3 +228,4 @@ __marimo__/
 reputation.db
 backend/reputation.db
 *.csv
+package-lock.json
