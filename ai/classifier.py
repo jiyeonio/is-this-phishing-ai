@@ -1,49 +1,99 @@
-"""문자모델 분류기 (계약 ⑤).
+"""KcELECTRA 문자 피싱 분류기.
 
-    classifier.predict_proba(masked_text: str) -> float   # 0~1, 피싱 확률
+계약:
+    classifier.predict_proba(masked_text: str) -> float
 
-⚠️ 최소 폴백. 실제 학습 모델(KcELECTRA)이 models/text_clf/ 에 저장되면
-A 팀원이 이 파일을 교체해 자동 로드하게 만듦. 시그니처는 그대로 유지.
-
-지금은 학습 모델이 없어도 B가 관통 테스트할 수 있도록,
-마스킹된 텍스트의 키워드로 대충 그럴듯한 0~1 점수를 만든다.
-(성능 수치로 쓰면 안 됨 — 파이프라인 배선 확인용)
+반환값:
+    0.0~1.0 범위의 피싱 확률
 """
 
-# 스미싱에서 흔한 유도 키워드. 실제 모델을 흉내내는 게 아니라
-# "URL/행동유도가 있으면 점수가 오른다" 정도의 신호만 준다.
-_KEYWORDS = (
-    ("[URL]", 0.25),
-    ("무료", 0.10),
-    ("당첨", 0.20),
-    ("클릭", 0.15),
-    ("조회", 0.10),
-    ("인증", 0.12),
-    ("계좌", 0.15),
-    ("송금", 0.20),
-    ("정지", 0.15),
-    ("압류", 0.20),
-    ("고객센터", 0.10),
-    ("확인요망", 0.15),
-    ("긴급", 0.15),
-    ("택배", 0.10),
-    ("주소불일치", 0.20),
-    ("엄마", 0.10),
-    ("폰", 0.05),
-    ("돈", 0.10),
+from pathlib import Path
+
+import torch
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+)
+
+
+# classifier.py가 ai 폴더 안에 있으므로
+# ai/models/text_clf 경로를 가리킨다.
+AI_DIR = Path(__file__).resolve().parent
+MODEL_DIR = AI_DIR / "models" / "text_clf"
+
+MAX_LENGTH = 256
+
+
+if not MODEL_DIR.exists():
+    raise FileNotFoundError(
+        f"KcELECTRA 모델 폴더를 찾을 수 없습니다: {MODEL_DIR}"
+    )
+
+
+# CPU 또는 GPU 자동 선택
+DEVICE = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+
+print(f"[classifier] 모델 로딩 시작: {MODEL_DIR}")
+
+
+tokenizer = AutoTokenizer.from_pretrained(
+    MODEL_DIR,
+    local_files_only=True,
+)
+
+model = AutoModelForSequenceClassification.from_pretrained(
+    MODEL_DIR,
+    local_files_only=True,
+)
+
+model.to(DEVICE)
+model.eval()
+
+
+print(
+    f"[classifier] KcELECTRA 로드 완료 "
+    f"(device={DEVICE})"
 )
 
 
 def predict_proba(masked_text: str) -> float:
-    """마스킹 텍스트 -> 피싱 확률(0~1). 폴백 휴리스틱."""
-    if not masked_text:
-        return 0.05
+    """전처리된 문자에서 피싱 확률을 반환한다."""
 
-    text = masked_text
-    score = 0.0
-    for kw, w in _KEYWORDS:
-        if kw in text:
-            score += w
+    if masked_text is None:
+        return 0.0
 
-    # 0~1 로 눌러줌 (여러 키워드가 겹쳐도 1을 안 넘게)
-    return round(min(score, 1.0), 4)
+    text = str(masked_text).strip()
+
+    if not text:
+        return 0.0
+
+    encoded = tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        max_length=MAX_LENGTH,
+        padding=True,
+    )
+
+    encoded = {
+        key: value.to(DEVICE)
+        for key, value in encoded.items()
+    }
+
+    with torch.inference_mode():
+        logits = model(**encoded).logits
+
+        probabilities = torch.softmax(
+            logits,
+            dim=-1,
+        )
+
+        # 학습 라벨:
+        # 0 = 정상
+        # 1 = 피싱
+        phishing_probability = probabilities[0, 1].item()
+
+    return round(float(phishing_probability), 4)
