@@ -30,6 +30,17 @@ _W_PHRASE_SIMILAR = 0.30   # 유사 신고 문구 (토큰 자카드)
 _W_PER_EXTRA_REPORT = 0.05  # 같은 도메인 신고 누적 보너스 (건당)
 _SIMILARITY_THRESHOLD = 0.30  # 유사 문구로 인정하는 자카드 하한(토큰 자카드 기준 보정)
 
+# 문구 유사도 계산에서 제외할 의미 없는 공통 토큰
+_GENERIC_TOKENS = {
+    "url",
+    "http",
+    "https",
+    "www",
+    "com",
+    "net",
+    "org",
+}
+
 
 def _connect() -> sqlite3.Connection:
     con = sqlite3.connect(_DB_PATH, check_same_thread=False)
@@ -159,10 +170,34 @@ def report_count() -> int:
         con.close()
 
 
+def _clean_similarity_tokens(tokens) -> set[str]:
+    """문구 유사도 계산에서 URL 공통 토큰과 빈 토큰을 제거."""
+    cleaned: set[str] = set()
+
+    for token in tokens or []:
+        value = str(token).strip().lower()
+
+        if not value:
+            continue
+
+        if value in _GENERIC_TOKENS:
+            continue
+
+        cleaned.add(value)
+
+    return cleaned
+
+
 def _jaccard(a: set, b: set) -> float:
-    if not a or not b:
+    """의미 없는 URL 공통 토큰을 제외한 토큰 자카드 유사도."""
+    clean_a = _clean_similarity_tokens(a)
+    clean_b = _clean_similarity_tokens(b)
+
+    # 토큰이 너무 적은 문장은 우연한 일치 가능성이 높아 제외
+    if len(clean_a) < 3 or len(clean_b) < 3:
         return 0.0
-    return len(a & b) / len(a | b)
+
+    return len(clean_a & clean_b) / len(clean_a | clean_b)
 
 
 def lookup(pre: dict) -> tuple[float, list[dict]]:
@@ -202,7 +237,13 @@ def lookup(pre: dict) -> tuple[float, list[dict]]:
         if sim > best_sim:
             best_sim = sim
     if best_sim >= _SIMILARITY_THRESHOLD:
-        w = round(min(_W_PHRASE_SIMILAR * best_sim / _SIMILARITY_THRESHOLD, _W_PHRASE_SIMILAR), 4)
+        w = round(
+            min(
+                _W_PHRASE_SIMILAR * best_sim / _SIMILARITY_THRESHOLD,
+                _W_PHRASE_SIMILAR,
+            ),
+            4,
+        )
         score += w
         evidence.append(
             {

@@ -26,6 +26,7 @@ import pandas as pd
 from ai.classifier import predict_proba
 from ai.preprocess import preprocess
 from ai.url_rule_engine import analyze as analyze_url_rules
+from backend.reputation import lookup as lookup_reputation
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -118,6 +119,7 @@ def build_meta_split(
         model_p = predict_proba(model_input)
 
         rule_s, rule_evidence = analyze_url_rules(pre)
+        rep_s, rep_evidence = lookup_reputation(pre)
 
         urls = pre.get("urls", [])
         domains = pre.get("domains", [])
@@ -143,6 +145,11 @@ def build_meta_split(
                 ),
                 "rule_evidence": json.dumps(
                     make_json_serializable(rule_evidence),
+                    ensure_ascii=False,
+                ),
+                "rep_s": float(rep_s),
+                "rep_evidence": json.dumps(
+                    make_json_serializable(rep_evidence),
                     ensure_ascii=False,
                 ),
             }

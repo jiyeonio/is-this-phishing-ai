@@ -191,6 +191,13 @@ def extract_urls(text: str) -> list[str]:
             )
         )
 
+        # URL 뒤에 붙은 대표적인 한국어 조사 제거
+        url = re.sub(
+            r"(?:에서|으로|로|은|는|이|가|을|를|와|과|의|에)$",
+            "",
+            url,
+        )
+
         if url and url not in urls:
             urls.append(url)
 
