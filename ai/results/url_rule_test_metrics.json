@@ -1,0 +1,16 @@
+{
+  "engine": "rule_based_url_structure",
+  "blocklist_used": false,
+  "threshold": 0.2,
+  "test_rows": 9000,
+  "accuracy": 0.8728888888888889,
+  "precision": 0.9788812785388128,
+  "recall": 0.7622222222222222,
+  "f1": 0.8570714642678661,
+  "confusion_matrix": {
+    "tn": 4426,
+    "fp": 74,
+    "fn": 1070,
+    "tp": 3430
+  }
+}
